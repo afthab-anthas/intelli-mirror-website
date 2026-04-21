@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirror Security PWA</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            background: #0f172a;
+            color: white;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 300px;
+        }
+
+        /* PIN Screen */
+        #pin-screen {
+            display: block;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: none;
+            font-size: 24px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        /* Dashboard Screen */
+        #dashboard-screen {
+            display: none;
+        }
+
+        .status {
+            margin: 20px 0;
+            font-size: 18px;
+            color: #94a3b8;
+        }
+
+        .status span {
+            font-weight: bold;
+            color: #10b981;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 20px 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ef4444;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #10b981;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Toast Notification */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #ef4444;
+            color: #fff;
+            text-align: center;
+            border-radius: 10px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 4.5s;
+        }
+
+        @keyframes fadein {
+            from {
+                bottom: 0;
+                opacity: 0;
+            }
+
+            to {
+                bottom: 30px;
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeout {
+            from {
+                bottom: 30px;
+                opacity: 1;
+            }
+
+            to {
+                bottom: 0;
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div id="pin-screen">
+            <h2>Admin Login</h2>
+            <p style="color: #94a3b8; font-size: 14px;">Enter PIN to access mirror security.</p>
+            <input type="password" id="pin-input" placeholder="••••" maxlength="4">
+            <button onclick="checkPin()">Unlock</button>
+            <p id="pin-error" style="color: #ef4444; display: none; margin-top: 10px;">Incorrect PIN</p>
+        </div>
+
+        <div id="dashboard-screen">
+            <h2>Security Panel</h2>
+            <div class="status" id="mqtt-status">MQTT: <span style="color: #f59e0b;">Connecting...</span></div>
+
+            <label class="switch">
+                <input type="checkbox" id="security-toggle" onchange="toggleSecurity()">
+                <span class="slider"></span>
+            </label>
+            <h3 id="mode-text" style="color: #ef4444;">NORMAL MODE</h3>
+            <p style="color: #94a3b8; font-size: 14px;">Toggle right to Enforce Face Lock.</p>
+        </div>
+    </div>
+
+    <div id="toast">🚨 INTRUDER DETECTED AT MIRROR!</div>
+
+    <script>
+        // --- 1. PIN LOGIC ---
+        const CORRECT_PIN = "1234"; // Change this to your desired PIN
+
+        function checkPin() {
+            const input = document.getElementById("pin-input").value;
+            if (input === CORRECT_PIN) {
+                document.getElementById("pin-screen").style.display = "none";
+                document.getElementById("dashboard-screen").style.display = "block";
+                connectMQTT(); // Only connect to MQTT after successful login
+            } else {
+                document.getElementById("pin-error").style.display = "block";
+                document.getElementById("pin-input").value = "";
+            }
+        }
+
+        // --- 2. MQTT LOGIC ---
+        let client;
+        const TOPIC_MODE = "intellimirror_77x9/security_mode";
+        const TOPIC_ALERTS = "intellimirror_77x9/alerts";
+
+        function connectMQTT() {
+            // We use WSS (WebSocket Secure) to talk to the MQTT broker from a web browser
+            client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+            client.on("connect", () => {
+                document.getElementById("mqtt-status").innerHTML = 'MQTT: <span style="color: #10b981;">Connected</span>';
+                client.subscribe(TOPIC_ALERTS);
+            });
+
+            client.on("message", (topic, message) => {
+                if (topic === TOPIC_ALERTS && message.toString() === "INTRUDER_DETECTED") {
+                    showToast();
+                    // Optional: Play a sound
+                    // new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
+                }
+            });
+        }
+
+        function toggleSecurity() {
+            const isEnforced = document.getElementById("security-toggle").checked;
+            const modeText = document.getElementById("mode-text");
+
+            if (isEnforced) {
+                modeText.innerText = "ENFORCED MODE";
+                modeText.style.color = "#10b981";
+                client.publish(TOPIC_MODE, "ENFORCED");
+            } else {
+                modeText.innerText = "NORMAL MODE";
+                modeText.style.color = "#ef4444";
+                client.publish(TOPIC_MODE, "NORMAL");
+            }
+        }
+
+        function showToast() {
+            const toast = document.getElementById("toast");
+            toast.className = "show";
+            setTimeout(function () { toast.className = toast.className.replace("show", ""); }, 5000);
+        }
+    </script>
+</body>
+
+</html>
