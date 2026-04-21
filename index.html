@@ -264,6 +264,40 @@
                 opacity: 0;
             }
         }
+
+        /* Image Viewer Modal */
+        #image-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #modal-img {
+            max-width: 90%;
+            max-height: 80%;
+            border-radius: 10px;
+            border: 2px solid #334155;
+        }
+        
+        #modal-close {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            width: auto;
+        }
     </style>
 </head>
 
@@ -308,6 +342,11 @@
     </div>
 
     <div id="toast">🚨 INTRUDER DETECTED AT MIRROR!</div>
+
+    <div id="image-modal">
+        <img id="modal-img" src="">
+        <button id="modal-close" onclick="document.getElementById('image-modal').style.display='none'">Close</button>
+    </div>
 
     <script>
         // --- 1. PIN LOGIC ---
@@ -374,22 +413,44 @@
         }
 
         // --- 3. INTRUDER LOG LOGIC ---
-        function addIntruderLog(timeStr, imageB64) {
-            const logContainer = document.getElementById("intruder-log");
-            if (logContainer.innerHTML.includes("No intruders")) logContainer.innerHTML = "";
+        let intruderLogs = JSON.parse(localStorage.getItem('intruderLogs')) || [];
 
-            const item = document.createElement("div");
-            item.className = "log-item";
-            item.innerHTML = `
-                <img src="${imageB64}" alt="Intruder">
-                <div class="log-details">
-                    <strong>Unknown Face</strong>
-                    <div class="log-time">${timeStr}</div>
-                </div>
-            `;
-            logContainer.prepend(item);
+        function renderIntruderLogs() {
+            const logContainer = document.getElementById("intruder-log");
+            logContainer.innerHTML = "";
+            if (intruderLogs.length === 0) {
+                logContainer.innerHTML = '<p style="color: #64748b; font-size: 13px; text-align: center; margin: 20px 0;">No intruders detected yet.</p>';
+                return;
+            }
+            intruderLogs.forEach(log => {
+                const item = document.createElement("div");
+                item.className = "log-item";
+                item.innerHTML = `
+                    <img src="${log.image}" alt="Intruder" style="cursor: pointer;" onclick="openImageModal('${log.image}')">
+                    <div class="log-details">
+                        <strong>Unknown Face</strong>
+                        <div class="log-time">${log.time}</div>
+                    </div>
+                `;
+                logContainer.appendChild(item);
+            });
+        }
+
+        function openImageModal(imgSrc) {
+            document.getElementById('modal-img').src = imgSrc;
+            document.getElementById('image-modal').style.display = 'flex';
+        }
+
+        function addIntruderLog(timeStr, imageB64) {
+            intruderLogs.unshift({ time: timeStr, image: imageB64 });
+            if (intruderLogs.length > 20) intruderLogs.pop(); // Keep only last 20 logs to save storage space
+            localStorage.setItem('intruderLogs', JSON.stringify(intruderLogs));
+            renderIntruderLogs();
             showToast();
         }
+
+        // Run on startup
+        renderIntruderLogs();
 
         // --- 4. CHART.JS LOGIC ---
         let chartInstance = null;
@@ -410,6 +471,7 @@
         }
 
         function updateChart(statsData) {
+            localStorage.setItem('loginStats', JSON.stringify(statsData)); // Cache for startup
             if (!chartInstance) initChart();
 
             const dates = Object.keys(statsData).sort().slice(-5); // Keep to last 5 days so it fits nicely
@@ -429,7 +491,12 @@
             chartInstance.update();
         }
 
-        initChart(); // Draw empty chart on startup
+        const savedStats = JSON.parse(localStorage.getItem('loginStats'));
+        if (savedStats) {
+            updateChart(savedStats);
+        } else {
+            initChart(); // Draw empty chart on startup if no cache
+        }
     </script>
 </body>
 
