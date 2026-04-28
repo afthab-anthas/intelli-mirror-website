@@ -489,19 +489,11 @@
         if (savedStats) updateChart(savedStats); else initChart();
     </script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, collection, query, where, onSnapshot, updateDoc, deleteDoc, doc }
-            from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "firebase/app";
-        import { getAnalytics } from "firebase/analytics";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
-
+    <script>
         // Your web app's Firebase configuration
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
             apiKey: "AIzaSyC4DjIgtfnhDzeShiFOMKiikfG008XzM9Q",
             authDomain: "intelli-211a0.firebaseapp.com",
@@ -509,29 +501,27 @@
             projectId: "intelli-211a0",
             storageBucket: "intelli-211a0.firebasestorage.app",
             messagingSenderId: "1054391898850",
-            appId: "1:1054391898850:web:dbb340bb749d0b65d944bb",
-            measurementId: "G-CJWQNJY5JX"
+            appId: "1:1054391898850:web:dbb340bb749d0b65d944bb"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
+        // Initialize Firebase old-school way
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
         // Listen for "pending" requests in real-time
-        const q = query(collection(db, "security_requests"), where("status", "==", "pending"));
+        db.collection("security_requests").where("status", "==", "pending")
+            .onSnapshot((snapshot) => {
+                const container = document.getElementById('pending-requests');
+                container.innerHTML = '';
 
-        onSnapshot(q, (snapshot) => {
-            const container = document.getElementById('pending-requests');
-            container.innerHTML = '';
+                if (snapshot.empty) {
+                    container.innerHTML = '<p style="color: #64748b; font-size: 13px; text-align: center; margin: 20px 0;">No pending requests.</p>';
+                    return;
+                }
 
-            if (snapshot.empty) {
-                container.innerHTML = '<p style="color: #64748b; font-size: 13px; text-align: center; margin: 20px 0;">No pending requests.</p>';
-                return;
-            }
-
-            snapshot.forEach((docSnap) => {
-                const data = docSnap.data();
-                container.innerHTML += `
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    container.innerHTML += `
                     <div class="log-item pending">
                         <div style="display: flex; gap: 15px; align-items: center;">
                             <img src="${data.image}" onclick="openImageModal('${data.image}')">
@@ -547,21 +537,24 @@
                         </div>
                     </div>
                 `;
+                });
             });
-        });
 
         // Attach Firebase functions to the window so HTML buttons can use them
         window.approveRequest = async (docId) => {
             const nameInput = document.getElementById(`name-${docId}`).value.trim();
             if (!nameInput) return alert("You must enter a name to approve this user!");
 
-            await updateDoc(doc(db, "security_requests", docId), { status: "approved", name: nameInput });
+            await db.collection("security_requests").doc(docId).update({
+                status: "approved",
+                name: nameInput
+            });
             alert(`Approved! The mirror is now scanning ${nameInput}'s face.`);
         };
 
         window.rejectRequest = async (docId) => {
             if (confirm("Reject and delete this request?")) {
-                await deleteDoc(doc(db, "security_requests", docId));
+                await db.collection("security_requests").doc(docId).delete();
             }
         };
     </script>
