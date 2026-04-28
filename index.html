@@ -494,18 +494,28 @@
         import { getFirestore, collection, query, where, onSnapshot, updateDoc, deleteDoc, doc }
             from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // 🛑 IMPORTANT: PASTE YOUR FIREBASE WEB CONFIG HERE 🛑
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
-            apiKey: "AIzaSyYOUR-API-KEY",
-            authDomain: "your-project.firebaseapp.com",
-            projectId: "your-project",
-            storageBucket: "your-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:1234:web:abcd"
+            apiKey: "AIzaSyC4DjIgtfnhDzeShiFOMKiikfG008XzM9Q",
+            authDomain: "intelli-211a0.firebaseapp.com",
+            databaseURL: "https://intelli-211a0-default-rtdb.firebaseio.com",
+            projectId: "intelli-211a0",
+            storageBucket: "intelli-211a0.firebasestorage.app",
+            messagingSenderId: "1054391898850",
+            appId: "1:1054391898850:web:dbb340bb749d0b65d944bb",
+            measurementId: "G-CJWQNJY5JX"
         };
 
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const analytics = getAnalytics(app);
 
         // Listen for "pending" requests in real-time
         const q = query(collection(db, "security_requests"), where("status", "==", "pending"));
